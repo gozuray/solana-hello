@@ -1,36 +1,202 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Solana Wallet & Tokens dApp (Next.js + Tailwind)
 
-## Getting Started
+App minimalista para **conectar una wallet**, **listar SOL + tokens SPL**, y **enviar** tanto SOL como cualquier token SPL en **Devnet**. Construida con Next.js (App Router), TypeScript y Tailwind.
 
-First, run the development server:
+> **Estado actual**: devnet-ready ✅ — incluye UX con estados (Validando → Firmando → Enviando → Confirmada) y enlace a explorer.
+
+---
+
+## ✨ Funcionalidades
+
+* Conexión a **Devnet** y a Phantom (Wallet Adapter).
+* **Lista unificada** de activos: SOL + todos los **SPL tokens** del owner (vía `getParsedTokenAccountsByOwner`).
+* **Envío único**: selecciona un activo (SOL o SPL) y envíalo a cualquier address (crea el **ATA del destinatario** si no existe).
+* **Balances**: SOL (con polling) y SPL (refresco manual) en formato humano.
+* UI con **Tailwind** + card “glass” simple.
+* Fix de **SSR/hydration** para `WalletMultiButton`.
+
+---
+
+## 🧰 Tech Stack
+
+* **Next.js 15** (App Router) + **TypeScript**
+* **Tailwind CSS**
+* **@solana/web3.js**
+* **Solana Wallet Adapter**: `@solana/wallet-adapter-react`, `@solana/wallet-adapter-react-ui`, `@solana/wallet-adapter-phantom`
+* **@solana/spl-token** (SPL tokens)
+
+> Opcional futuro: Radix UI / shadcn/ui para Select personalizado y toasts.
+
+---
+
+## ✅ Requisitos
+
+* **Node.js ≥ 18**
+* **Phantom** instalado y en **Devnet**
+* **Solana CLI** + **spl-token CLI** (opcional, para crear/mint de tokens de prueba)
+
+---
+
+## 🚀 Inicio rápido
 
 ```bash
+# 1) Clonar e instalar
+npm install
+
+# 2) Entorno (opcional si no usas RPC propio)
+# .env.local
+# RPC_URL=https://api.devnet.solana.com
+
+# 3) Dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visita `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🔧 Configuración de red (Devnet/Mainnet)
 
-## Learn More
+* Por defecto el provider usa `clusterApiUrl("devnet")`.
+* Si quieres usar un **RPC propio** (Helius, QuickNode, Ankr), añade `RPC_URL` en `.env.local` y ajusta el `SolanaProvider` para leer de `process.env.NEXT_PUBLIC_RPC_URL` o `process.env.RPC_URL`.
+* Para **mainnet-beta**, cambia el endpoint (y **no uses** faucets).
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🗂️ Estructura relevante
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├─ app/
+│  ├─ layout.tsx                # Envuelve con <SolanaProvider /> + estética base
+│  └─ page.tsx                  # Home: botón de wallet + tokens list + send card
+├─ components/
+│  ├─ TokensList.tsx            # Lista de SOL + SPL tokens
+│  ├─ SendAnyTokenCard.tsx      # Formulario único para enviar SOL o SPL
+│  └─ ui/
+│     └─ Card.tsx               # Primitivo de Card (glass)
+├─ hooks/
+│  ├─ useSolBalance.ts          # Balance SOL con polling
+│  ├─ useSplBalance.ts          # Balance de un SPL por mint
+│  └─ useWalletTokens.ts        # Lista unificada (SOL + SPL)
+└─ providers/
+   └─ solana-provider.tsx       # ConnectionProvider + WalletProvider + Modal
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🧩 Cómo funciona
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Providers
+
+* `providers/solana-provider.tsx`:
+
+  * `ConnectionProvider` → `clusterApiUrl("devnet")` (o tu RPC)
+  * `WalletProvider` → `PhantomWalletAdapter` (`autoConnect`)
+  * `WalletModalProvider` → estilos de Wallet Adapter UI
+
+### SSR/Hydration fix
+
+* `WalletMultiButton` se importa **dinámico** con `{ ssr: false }` en `page.tsx` para evitar hydration mismatch.
+
+### Hooks
+
+* `useSolBalance(publicKey)`: lee balance de SOL, con **polling** cada 5s.
+* `useSplBalance(publicKey, mint)`: obtiene balance de un token SPL (ATA del owner) y expone `refresh()`.
+* `useWalletTokens(owner)`: agrega SOL + escanea todas las cuentas SPL del owner (token program) y forma la lista final.
+
+### Envío de tokens
+
+* `SendAnyTokenCard`:
+
+  * Si es **SOL**: `SystemProgram.transfer`.
+  * Si es **SPL**: calcula ATAs `from` y `to`. Si **no existe ATA** del destinatario, añade `createAssociatedTokenAccountInstruction`. Luego `createTransferInstruction`.
+  * Flujo UX: `Validando → Preparando → Firmando → Enviando → Confirmada` + link a Solscan (devnet).
+
+---
+
+## 🧪 Probar con tu propio token SPL (Devnet)
+
+> Opcional — útil para ver un token custom en la lista y poder enviarlo.
+
+```bash
+# Crear mint (token) en Devnet
+spl-token create-token
+# Copia el Address (mint)
+
+# Crear la cuenta asociada (ATA) de tu wallet para ese mint
+spl-token create-account <MINT>
+
+# Mintear tokens a tu wallet (ej. 1000 unidades humanas)
+spl-token mint <MINT> 1000
+```
+
+* Si Phantom **no** muestra el token custom, igual aparecerá en la **lista** de la dApp.
+* En `page.tsx` puedes mapear mints conocidos a símbolos legibles (`KNOWN`).
+
+---
+
+## 👁️ Personalización de UI (Tailwind-only)
+
+* Fondo y tipografía básica ya aplicados en `layout.tsx`.
+* Card “glass” en `components/ui/Card.tsx`.
+* Botón principal recomendado:
+
+  ```tsx
+  className="w-full rounded-xl px-4 py-2 font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-50 transition"
+  ```
+* Inputs/Select recomendados:
+
+  ```tsx
+  className="w-full rounded-xl px-3 py-2 bg-white/5 border border-white/10 focus:ring-2 focus:ring-violet-600"
+  ```
+* Select nativo: el **popup** depende del sistema; si quieres control total, usa **Radix Select**.
+
+---
+
+## 🧭 Scripts
+
+* `npm run dev` — arranca en desarrollo
+* `npm run build` — build de producción
+* `npm run start` — sirve `.next`
+* `npm run lint` — lint (si está configurado por create-next-app)
+
+---
+
+## 🔒 Seguridad
+
+* Nunca subas **semillas** o `id.json` → `.gitignore` ya incluye `**/id.json` y `.env*`.
+* Devnet ≠ Mainnet. No reutilices llaves reales.
+* Si cambias a `mainnet-beta`, usa un RPC fiable y revisa **comisiones** y **fondos**.
+
+---
+
+## 🐞 Troubleshooting
+
+* **Hydration error (WalletMultiButton)**: importa dinámico con `{ ssr:false }`.
+* **"You have tried to read publicKey…"**: falta envolver con `<WalletProvider>` → revisa `layout.tsx` y `SolanaProvider`.
+* **Balance no cambia**: confirma que Phantom está en **Devnet**, usa faucet/minteo y pulsa **Refrescar**.
+* **Rate limit/timeout**: cambia de RPC o aumenta intervalo de polling.
+* **Dirección inválida**: valida base58 del destino; el formulario ya muestra error amigable.
+
+---
+
+## 📄 Licencia
+
+MIT — úsalo y modifícalo libremente.
+
+---
+
+## 🙌 Agradecimientos
+
+* [Solana Wallet Adapter](https://github.com/solana-labs/wallet-adapter)
+* Comunidad Solana por ejemplos y documentación.
+
+---
+
+## 📌 Roadmap sugerido
+
+* Agregar **Radix Select** / **shadcn/ui** para un select custom y toasts.
+* Suscripción **WebSocket** (`onAccountChange`) para balances en tiempo real sin polling.
+* Soporte multi-wallet (Solflare, …) y estado global de sesión.
+* Mini-proyecto 2: **Mint de NFT** básico (Metaplex) y visualización.

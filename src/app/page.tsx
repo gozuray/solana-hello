@@ -1,10 +1,20 @@
 "use client";
-import { useConnection } from "@solana/wallet-adapter-react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useSolBalance } from "../hooks/useSolBalance";
-import SendSolCard from "../components/SendSolCard";
-
 import dynamic from "next/dynamic";
+import { PublicKey } from "@solana/web3.js";
+
+import { useWalletTokens } from "../hooks/useWalletTokens";
+import TokensList from "../components/TokensList";
+import SendAnyTokenCard from "../components/SendAnyTokenCard";
+
+// (opcional) mapa de mints conocidos a símbolos legibles
+const MYTOKEN_MINT = new PublicKey(
+  "BZ5JKaVvWstSPxbzX16UYg3jQY1MnE5ttPqQHWjEUtcM"
+);
+const KNOWN = {
+  [MYTOKEN_MINT.toBase58()]: { symbol: "MYTOKEN" },
+};
+
 const WalletMultiButtonDynamic = dynamic(
   async () =>
     (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
@@ -12,51 +22,48 @@ const WalletMultiButtonDynamic = dynamic(
 );
 
 export default function Home() {
-  const { connection } = useConnection();
   const { publicKey } = useWallet();
-  const { sol, loading, error, refresh } = useSolBalance(publicKey);
+
+  const { tokens, loading, error, refresh } = useWalletTokens(
+    publicKey ?? null,
+    KNOWN
+  );
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen gap-4">
-      <h1 className="text-2xl font-bold">Hola Blockchain 👋</h1>
-      <p>Conectado a: {connection.rpcEndpoint}</p>
+    <div className="w-full max-w-xl mx-auto flex flex-col items-stretch gap-6">
+      <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+        Hello, <span className="text-violet-400">Blockchain</span> 👋
+      </h1>
+      <p className="text-sm text-neutral-400">
+        Devnet · Wallet & Tokens Dashboard
+      </p>
 
-      {/* usa el dinámico */}
       <WalletMultiButtonDynamic />
 
       {publicKey ? (
-        <div className="mt-2 text-center">
-          <p className="font-mono text-sm break-all">
+        <>
+          <p className="font-mono text-sm break-all -mt-2">
             Address: {publicKey.toBase58()}
           </p>
 
-          <div className="mt-3">
-            {loading ? (
-              <p className="opacity-70">Consultando balance…</p>
-            ) : error ? (
-              <p className="text-red-600">Error: {error}</p>
-            ) : sol !== null ? (
-              <p className="text-lg">Balance: {sol.toFixed(4)} SOL</p>
-            ) : (
-              <p className="opacity-70">Sin datos de balance</p>
-            )}
-          </div>
+          {error ? (
+            <p className="text-red-600">Error: {error}</p>
+          ) : (
+            <TokensList
+              tokens={tokens}
+              onRefresh={refresh}
+              loading={loading}
+              title="Activos"
+            />
+          )}
 
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className="mt-2 rounded px-4 py-2 border"
-          >
-            {loading ? "Actualizando…" : "Refrescar balance"}
-          </button>
-        </div>
+          <SendAnyTokenCard tokens={tokens} />
+        </>
       ) : (
         <p className="text-sm opacity-70">
-          Conecta tu wallet para ver la address y el balance
+          Conecta tu wallet para ver tus tokens y enviar.
         </p>
       )}
-
-      <SendSolCard />
-    </main>
+    </div>
   );
 }

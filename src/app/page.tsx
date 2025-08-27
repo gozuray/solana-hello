@@ -1,9 +1,15 @@
 "use client";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useSolBalance } from "../hooks/useSolBalance";
-import SendSolCard from "../components/SendSolCard"; // 👈 nuevo
+import SendSolCard from "../components/SendSolCard";
+
+import dynamic from "next/dynamic";
+const WalletMultiButtonDynamic = dynamic(
+  async () =>
+    (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
+  { ssr: false }
+);
 
 export default function Home() {
   const { connection } = useConnection();
@@ -15,7 +21,8 @@ export default function Home() {
       <h1 className="text-2xl font-bold">Hola Blockchain 👋</h1>
       <p>Conectado a: {connection.rpcEndpoint}</p>
 
-      <WalletMultiButton />
+      {/* usa el dinámico */}
+      <WalletMultiButtonDynamic />
 
       {publicKey ? (
         <div className="mt-2 text-center">
@@ -49,7 +56,6 @@ export default function Home() {
         </p>
       )}
 
-      {/* 👇 tarjeta para enviar SOL en devnet */}
       <SendSolCard />
     </main>
   );
